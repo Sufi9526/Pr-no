@@ -2,6 +2,23 @@ import express from 'express';
 import TravelOption from '../models/TravelOption.js';
 
 const router = express.Router();
+const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const getDayFromDateInput = (dateInput) => {
+  // Handle HTML date input (YYYY-MM-DD) safely in UTC to avoid timezone shifts.
+  const parts = String(dateInput).split('-').map(Number);
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return null;
+  }
+
+  const [year, month, day] = parts;
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(utcDate.getTime())) {
+    return null;
+  }
+
+  return daysOfWeek[utcDate.getUTCDay()];
+};
 
 // Search travel options
 router.post('/search', async (req, res) => {
@@ -13,16 +30,41 @@ router.post('/search', async (req, res) => {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // Find travel options that match criteria and departure time is after entered time
-    const travelOptions = await TravelOption.find({
-      date: date,
-      fromLocation: fromLocation,
-      toLocation: toLocation,
-      mode: mode,
-      departureTime: { $gt: time }, // Only show options after entered time
+    // Convert entered date into canonical weekday (e.g., Monday)
+    const dayOfWeek = getDayFromDateInput(date);
+    if (!dayOfWeek) {
+      return res.status(400).json({ message: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
+
+    const normalizedMode = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+
+    const baseQuery = {
+      day: dayOfWeek,
+      fromLocation: fromLocation.trim(),
+      toLocation: toLocation.trim(),
+    };
+
+    // If mode is "all", return both bus and train for that day.
+    if (normalizedMode && normalizedMode !== 'all') {
+      baseQuery.mode = normalizedMode;
+    }
+
+    // First preference: options after entered time.
+    let travelOptions = await TravelOption.find({
+      ...baseQuery,
+      departureTime: { $gt: time },
     })
       .sort({ departureTime: 1 }) // Sort by departure time
       .limit(3); // Return only 3 options
+
+    // Fallback 1: if nothing found, return all options for that weekday/route (ignore time).
+    if (travelOptions.length === 0) {
+      travelOptions = await TravelOption.find(baseQuery)
+        .sort({ departureTime: 1 })
+        .limit(6);
+    }
+
+    // Keep results day-specific; do not fall back to other days.
 
     res.json(travelOptions);
   } catch (error) {

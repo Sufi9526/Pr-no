@@ -239,17 +239,7 @@ export default function Auth() {
             </div>
           )}
 
-          {isSigningIn && !isForgotPassword && (
-            <div className='mb-4'>
-              <button
-                type="button"
-                onClick={() => setIsForgotPassword(true)}
-                className="text-blue-700 text-sm hover:underline"
-              >
-                Forget Password?
-              </button>
-            </div>
-          )}
+         
 
           <button
             type="submit"

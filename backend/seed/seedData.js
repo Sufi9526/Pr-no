@@ -6,6 +6,90 @@ import Hotel from '../models/Hotel.js';
 
 dotenv.config();
 
+const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const travelOnlyMode = process.argv.includes('--travel-only');
+
+const getDayFromDateString = (dateString) => {
+  const dateObj = new Date(`${dateString}T00:00:00Z`);
+  if (Number.isNaN(dateObj.getTime())) return null;
+  return DAYS_OF_WEEK[dateObj.getUTCDay()];
+};
+
+const shiftTimeByMinutes = (timeString, minutesToShift) => {
+  const [hoursStr, minutesStr] = String(timeString).split(':');
+  const hours = Number(hoursStr);
+  const minutes = Number(minutesStr);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return timeString;
+  }
+
+  const totalMinutes = ((hours * 60 + minutes + minutesToShift) % (24 * 60) + (24 * 60)) % (24 * 60);
+  const shiftedHours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+  const shiftedMinutes = String(totalMinutes % 60).padStart(2, '0');
+  return `${shiftedHours}:${shiftedMinutes}`;
+};
+
+const createWeeklyTravelOptions = (baseOptions) => {
+  const TRAIN_NAMES = [
+    'Western Horizon Express',
+    'Silver Line Express',
+    'Ocean Breeze Express',
+    'Mountain King Express',
+    'Sapphire Express',
+    'Golden Arrow Express',
+    'Valley Runner Express',
+    'Emerald Coast Express',
+    'Blue Wave Express',
+    'Night Star Express',
+    'Rapid Link Express',
+    'Thunder Rail Express',
+    'Crystal Line Express',
+    'Sunset Express',
+    'Royal Track Express',
+  ];
+
+  const BUS_NAMES = [
+    'Speed Rider',
+    'Urban Glide',
+    'Express Wheels',
+    'Highway King',
+    'City Sprinter',
+    'Rapid Move',
+    'Smart Ride',
+    'Turbo Travels',
+    'Elite Journey',
+    'Swift Wheels',
+    'Comfort Line',
+    'Prime Travels',
+    'Zoom Rider',
+    'Easy Move',
+    'Star Travels',
+  ];
+
+  return DAYS_OF_WEEK.flatMap((day, dayIndex) => {
+    const minuteShift = dayIndex * 10;
+    const seatAdjustment = dayIndex % 3;
+    const priceAdjustment = dayIndex * 20;
+
+    return baseOptions.map((option, optionIndex) => {
+      const namePool = option.mode === 'train' ? TRAIN_NAMES : BUS_NAMES;
+      const nameIndex = (dayIndex * 3 + optionIndex) % namePool.length;
+      const selectedOperator = namePool[nameIndex];
+
+      return {
+        ...option,
+        day,
+        departureTime: shiftTimeByMinutes(option.departureTime, minuteShift),
+        arrivalTime: shiftTimeByMinutes(option.arrivalTime, minuteShift),
+        availableSeats: Math.max(5, option.availableSeats - seatAdjustment),
+        price: option.price + priceAdjustment,
+        operatorName: selectedOperator,
+      };
+    });
+  });
+};
+
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
@@ -92,14 +176,31 @@ const seedDatabase = async () => {
 
     // Clear existing data
     await TravelOption.deleteMany({});
-    await TouristPlace.deleteMany({});
-    await Hotel.deleteMany({});
+    if (!travelOnlyMode) {
+      await TouristPlace.deleteMany({});
+      await Hotel.deleteMany({});
+    }
 
     console.log('Existing data cleared');
 
-    // Insert travel options
-    await TravelOption.insertMany(travelOptions);
+    // Create day-wise travel data so each weekday has dedicated plans.
+    const baseTravelOptions = travelOptions.map((option) => {
+      const derivedDay = option.day || getDayFromDateString(option.date);
+      return {
+        ...option,
+        day: derivedDay,
+      };
+    });
+
+    const weeklyTravelOptions = createWeeklyTravelOptions(baseTravelOptions);
+
+    await TravelOption.insertMany(weeklyTravelOptions);
     console.log('Travel options seeded');
+
+    if (travelOnlyMode) {
+      console.log('Travel-only seed completed successfully!');
+      process.exit(0);
+    }
 
     // Insert tourist places
     const insertedPlaces = await TouristPlace.insertMany(touristPlaces);

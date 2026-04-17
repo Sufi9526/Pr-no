@@ -75,7 +75,7 @@ export default function DashboardHome() {
                <Map className="w-7 h-7 text-blue-600" />
             </div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Plan a New Trip</h2>
-            <p className="text-gray-500">Generate a custom AI itinerary tailored to your exact preferences, travel mode, and dates.</p>
+            <p className="text-gray-500">Generate a custom AI itinerary tailored to your exact preferences, travel mode, and days.</p>
           </div>
           
           <div className="mt-8 flex items-center text-blue-600 font-semibold">
