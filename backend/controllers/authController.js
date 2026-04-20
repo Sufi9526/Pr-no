@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
-
+import Itinerary from "../models/Itinerary.js";
 // --- Register User (No Changes) ---
 export const registerUser = async (req, res) => {
   try {
@@ -39,6 +39,42 @@ export const loginUser = async (req, res) => {
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
     res.json({
       message: "Login successful",
+      token,
+      user: { id: user._id, fullName: user.fullName, email: user.email },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// --- Google Login ---
+export const googleLogin = async (req, res) => {
+  try {
+    const { email, fullName, uid } = req.body;
+    let user = await User.findOne({ email });
+    
+    if (!user) {
+      // Create a user with a random secure password if they don't exist
+      const generatedPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+      const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+      user = await User.create({
+        fullName,
+        email,
+        password: hashedPassword,
+      });
+    }
+
+    // Migrate any itineraries saved with the Firebase UID to the MongoDB user ID
+    if (uid) {
+      await Itinerary.updateMany(
+        { userId: uid }, 
+        { $set: { userId: user._id.toString() } }
+      );
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    res.json({
+      message: "Google login successful",
       token,
       user: { id: user._id, fullName: user.fullName, email: user.email },
     });

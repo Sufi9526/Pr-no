@@ -49,7 +49,17 @@ export default function Auth() {
     try {
       const result = await signInWithPopup(auth, provider);
       console.log(result.user);
-      localStorage.setItem("user", JSON.stringify(result.user));
+      
+      // Call backend to ensure user exists and to migrate any itineraries
+      const res = await axios.post(`${API_URL}/google`, {
+        email: result.user.email,
+        fullName: result.user.displayName || "Google User",
+        uid: result.user.uid
+      });
+
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+      
       navigate("/dashboard/tripplan/home");
     } catch (error) {
       console.log(error);

@@ -4,7 +4,8 @@ import {
   loginUser,
   forgotPassword,
   resetPassword,
-  updatePassword
+  updatePassword,
+  googleLogin
 } from "../controllers/authController.js";
 
 const router = express.Router();
@@ -12,6 +13,7 @@ const router = express.Router();
 // --- നിലവിലുള്ള റൂട്ടുകൾ (No Changes) ---
 router.post("/signup", registerUser);
 router.post("/login", loginUser);
+router.post("/google", googleLogin);
 
 // --- പുതുതായി ചേർക്കുന്ന Forgot & Reset റൂട്ടുകൾ ---
 router.post("/forgot-password", forgotPassword);
