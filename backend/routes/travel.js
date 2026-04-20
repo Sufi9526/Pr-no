@@ -4,6 +4,8 @@ import TravelOption from '../models/TravelOption.js';
 const router = express.Router();
 const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const getDayFromDateInput = (dateInput) => {
   // Handle HTML date input (YYYY-MM-DD) safely in UTC to avoid timezone shifts.
   const parts = String(dateInput).split('-').map(Number);
@@ -38,10 +40,14 @@ router.post('/search', async (req, res) => {
 
     const normalizedMode = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
 
+    const normalizedFromLocation = fromLocation.trim();
+    const normalizedToLocation = toLocation.trim();
+
     const baseQuery = {
       day: dayOfWeek,
-      fromLocation: fromLocation.trim(),
-      toLocation: toLocation.trim(),
+      // Make location matching case-insensitive and robust to user input casing.
+      fromLocation: { $regex: `^${escapeRegExp(normalizedFromLocation)}$`, $options: 'i' },
+      toLocation: { $regex: `^${escapeRegExp(normalizedToLocation)}$`, $options: 'i' },
     };
 
     // If mode is "all", return both bus and train for that day.

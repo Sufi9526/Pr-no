@@ -4,6 +4,24 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 // import './TravelSearch.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const getDayFromDateInput = (dateInput) => {
+  const parts = String(dateInput).split('-').map(Number);
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return '';
+  }
+
+  const [year, month, day] = parts;
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(utcDate.getTime())) {
+    return '';
+  }
+
+  return DAYS_OF_WEEK[utcDate.getUTCDay()];
+};
+
 const TravelSearch = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -18,6 +36,7 @@ const TravelSearch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchPerformed, setSearchPerformed] = useState(false);
+  const [searchedDay, setSearchedDay] = useState('');
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -26,8 +45,12 @@ const TravelSearch = () => {
   const handleSearch = async (e) => {
     e.preventDefault();
 
+    const normalizedFromLocation = formData.fromLocation.trim();
+    const normalizedToLocation = formData.toLocation.trim();
+    const dayFromDate = getDayFromDateInput(formData.date);
+
     // Validation
-    if (!formData.date || !formData.time || !formData.fromLocation || !formData.toLocation || !formData.numberOfDays) {
+    if (!formData.date || !formData.time || !normalizedFromLocation || !normalizedToLocation || !formData.numberOfDays) {
       setError('Please fill in all fields');
       return;
     }
@@ -39,22 +62,27 @@ const TravelSearch = () => {
 
     setLoading(true);
     setError('');
+    setTravelOptions([]);
+    setSearchPerformed(false);
+    setSearchedDay(dayFromDate);
 
     try {
-      const response = await axios.post('/api/travel/search', {
+      const response = await axios.post(`${API_BASE_URL}/api/travel/search`, {
         date: formData.date,
         time: formData.time,
-        fromLocation: formData.fromLocation,
-        toLocation: formData.toLocation,
+        fromLocation: normalizedFromLocation,
+        toLocation: normalizedToLocation,
         mode: formData.mode,
       });
 
-      setTravelOptions(response.data);
+      setTravelOptions(Array.isArray(response.data) ? response.data : []);
       setSearchPerformed(true);
       setError('');
     } catch (err) {
-      setError('Failed to search travel options. Please try again.');
+      const backendMessage = err?.response?.data?.message;
+      setError(backendMessage || 'Failed to search travel options. Please try again.');
       console.error('Search error:', err);
+      setSearchPerformed(true);
     } finally {
       setLoading(false);
     }
@@ -167,6 +195,9 @@ const TravelSearch = () => {
         {searchPerformed && travelOptions.length > 0 && (
           <div className="mt-12">
             <h3 className="font-semibold">Available Travel Options</h3>
+            {searchedDay && (
+              <p className="text-gray-500 text-sm mb-2">Showing options for {searchedDay}</p>
+            )}
             <p className="text-[#B0B0B0] text-base mb-4">Select one of the following options:</p>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6 mt-6">
               {travelOptions.map((option) => (
@@ -200,6 +231,13 @@ const TravelSearch = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {searchPerformed && !loading && travelOptions.length === 0 && !error && (
+          <div className="mt-8 rounded-lg border border-gray-300 bg-gray-50 p-4 text-gray-700">
+            {searchedDay ? `No travel options found for ${searchedDay}. ` : 'No travel options found. '}
+            Try changing date, time, or mode.
           </div>
         )}
       </div>
